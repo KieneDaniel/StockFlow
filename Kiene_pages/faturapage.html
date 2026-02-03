@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StockFlow – Gerenciamento de Faturas</title>
+
+<!-- Google Fonts: Poppins para títulos, Nunito para corpo -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet" />
+
+<!-- pdf.js CDN – biblioteca para renderizar PDFs no navegador -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+/* ============================================================
+   1. CSS GLOBAIS
+   ============================================================ */
+:root {
+  --blue-primary : #1a6dd4;
+  --blue-dark    : #145aaf;
+  --blue-light   : #e8f1fd;
+  --green-btn    : #27ae60;
+  --green-hover  : #219a52;
+  --red-btn      : #e74c3c;
+  --red-hover    : #c0392b;
+  --text-dark    : #1e293b;
+  --text-mid     : #64748b;
+  --bg-page      : #f0f4f8;
+  --bg-card      : #ffffff;
+  --shadow-card  : 0 2px 12px rgba(0,0,0,0.08);
+  --shadow-hover : 0 6px 24px rgba(0,0,0,0.15);
+  --radius-lg    : 14px;
+  --sidebar-w    : 240px;
+}
+
+/* ============================================================
+   2. RESET GLOBAL
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg-page);
+  color: var(--text-dark);
+  min-height: 100vh;
+  display: flex;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   3. SIDEBAR – barra lateral fixa
+   ============================================================ */
+.sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 100;
+  padding: 24px 16px;
+}
+
+.sidebar .logo {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--blue-primary);
+  margin-bottom: 28px;
+  padding-left: 6px;
+}
+
+.sidebar nav ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #fff;
+  background: var(--blue-primary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background 0.2s, transform 0.15s;
+}
+.sidebar nav a:hover          { background: var(--blue-dark); transform: translateX(3px); }
+.sidebar nav a.active         { background: var(--blue-dark); box-shadow: 0 2px 8px rgba(26,109,212,0.35); }
+.sidebar nav a svg            { width: 18px; height: 18px; flex-shrink: 0; }
+
+.sidebar .logout {
+  margin-top: auto;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--blue-primary);
+  font-weight: 700; font-size: 0.95rem;
+  cursor: pointer; padding: 8px 6px;
+  border: none; background: none; font-family: inherit;
+  transition: color 0.2s;
+}
+.sidebar .logout:hover { color: var(--blue-dark); }
+.sidebar .logout svg   { width: 20px; height: 20px; }
+
+/* ============================================================
+   4. ÁREA PRINCIPAL
+   ============================================================ */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ============================================================
+   5. HEADER
+   ============================================================ */
+.header {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 { font-family: 'Poppins', sans-serif; font-size: 1.45rem; font-weight: 700; }
+
+.search-box { display: flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; }
+.search-box input { border: none; outline: none; padding: 8px 14px; font-size: 0.88rem; color: var(--text-mid); font-family: inherit; width: 220px; }
+.search-box button { background: var(--blue-primary); border: none; padding: 8px 14px; cursor: pointer; color: #fff; transition: background 0.2s; }
+.search-box button:hover { background: var(--blue-dark); }
+.search-box button svg { width: 18px; height: 18px; }
+
+/* ============================================================
+   6. CONTEÚDO SCROLLÁVEL
+   ============================================================ */
+.content { flex: 1; padding: 28px 32px; overflow-y: auto; }
+
+/* ============================================================
+   7. CARDS DE RESUMO (3 estatísticas no topo)
+   ============================================================ */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 28px;
+}
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 20px 18px;
+  text-align: center;
+  box-shadow: var(--shadow-card);
+}
+.summary-card .label { font-size: 0.82rem; color: var(--text-mid); margin-bottom: 6px; }
+.summary-card .value { font-family: 'Poppins', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--text-dark); }
+.summary-card .value.green { color: #27ae60; }
+
+/* ============================================================
+   8. TOOLBAR – título + controles + busca + botão adicionar
+   ============================================================ */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.toolbar h2 { font-family: 'Poppins', sans-serif; font-size: 1.2rem; font-weight: 700; }
+
+.toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Toggle modo lista / grid */
+.view-toggle { display: flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; }
+.view-toggle button { border: none; background: transparent; padding: 8px 14px; cursor: pointer; color: var(--text-mid); font-size: 1.1rem; transition: background 0.2s, color 0.2s; display: flex; align-items: center; }
+.view-toggle button.active     { background: var(--blue-primary); color: #fff; }
+.view-toggle button:hover:not(.active) { background: var(--blue-light); color: var(--blue-primary); }
+
+/* Campo de busca */
+.search-invoice {
+  border: 1px solid #cbd5e1; border-radius: 8px;
+  padding: 8px 14px; font-size: 0.88rem; color: var(--text-mid);
+  font-family: inherit; width: 200px; outline: none;
+  transition: border-color 0.2s;
+}
+.search-invoice:focus { border-color: var(--blue-primary); }
+
+/* Botão "Adicionar Fatura" – verde, com ícone + */
+.btn-add-fatura {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--green-btn); color: #fff;
+  border: none; padding: 8px 18px; border-radius: 8px;
+  font-weight: 700; font-size: 0.88rem; cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.btn-add-fatura:hover { background: var(--green-hover); transform: translateY(-1px); }
+.btn-add-fatura svg  { width: 16px; height: 16px; }
+
+/* Input oculto para selecionar arquivo PDF */
+#input-pdf { display: none; }
+
+/* ============================================================
+   9. CONTAINER DE FATURAS – alterna entre modo vertical e grid
+   ============================================================ */
+.invoices-container {
+  display: flex;
+  flex-direction: column;   /* modo vertical por padrão */
+  gap: 14px;
+}
+
+/* ---- MODO GRID: grade responsiva ---- */
+.invoices-container.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+/* ============================================================
+   10. CARD VERTICAL (modo lista)
+       Layout: [ícone PDF] [info + mensagem] [valor] [apagar]
+       Tudo em uma única linha horizontal.
+   ============================================================ */
+.invoice-card {
+  background: var(--bg-card);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: box-shadow 0.25s, transform 0.2s;
+  animation: slideDown 0.3s ease both;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.invoice-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+
+/* Ícone PDF pequeno (modo vertical) */
+.invoice-card .pdf-icon-small {
+  width: 44px; height: 52px; flex-shrink: 0;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 0.72rem;
+  box-shadow: 0 2px 6px rgba(231,76,60,0.3);
+}
+
+/* Info central: número + data + mensagem relativa */
+.invoice-card .info { 
+  flex: 1; 
+  min-width: 0; 
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.invoice-card .info .invoice-number { 
+  font-weight: 700; 
+  font-size: 0.95rem; 
+  color: var(--text-dark); 
+  line-height: 1.3;
+}
+.invoice-card .info .invoice-date { 
+  font-size: 0.82rem; 
+  color: var(--text-mid); 
+  line-height: 1.3;
+}
+
+/* Mensagem relativa colorida */
+.relative-msg {
+  display: inline-block;
+  font-size: 0.76rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px;
+  line-height: 1.4;
+}
+.relative-msg.recent { background: #e8faf0; color: #27ae60; }
+.relative-msg.medium { background: #fef3e2; color: #e67e22; }
+.relative-msg.old    { background: #fce8e8; color: #e74c3c; }
+
+/* Valor da fatura */
+.invoice-card .amount {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700; font-size: 1rem;
+  color: var(--text-dark);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* Botão apagar (modo vertical) */
+.btn-delete {
+  width: 34px; height: 34px; flex-shrink: 0;
+  background: var(--red-btn); border: none; border-radius: 6px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, transform 0.15s;
+}
+.btn-delete:hover { background: var(--red-hover); transform: scale(1.1); }
+.btn-delete svg   { width: 16px; height: 16px; color: #fff; }
+
+/* ============================================================
+   11. CARD GRID (modo grid)
+       Layout vertical: [preview PDF real] [info] [valor + apagar]
+       O preview usa um <canvas> onde o pdf.js desenha a página 1.
+   ============================================================ */
+
+/* No modo grid, o card muda para coluna */
+.invoices-container.mode-grid .invoice-card {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  cursor: default; /* clique no card inteiro não abre mais; usamos botão separado */
+}
+
+/* Ícone pequeno some no modo grid */
+.invoices-container.mode-grid .invoice-card .pdf-icon-small { display: none; }
+
+/* ---- Preview do PDF (canvas) ---- */
+.pdf-preview-wrap {
+  display: none;                /* oculto no modo vertical */
+  width: 100%;
+  height: 160px;
+  background: #f7f7f7;
+  border-bottom: 1px solid #eee;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Canvas que recebe o rendering do PDF */
+.pdf-preview-wrap canvas {
+  /* cobre toda a área do preview sem distorção */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Texto "sem preview" quando o PDF ainda não foi renderizado */
+.pdf-preview-wrap .no-preview {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #aaa; font-size: 0.82rem;
+  background: linear-gradient(135deg, #fef2f2, #ffe4e4);
+}
+.no-preview .pdf-stamp {
+  font-family: 'Poppins', sans-serif;
+  font-size: 2.2rem; font-weight: 700;
+  color: rgba(231,76,60,0.15);
+}
+
+/* No modo grid, o preview aparece */
+.invoices-container.mode-grid .pdf-preview-wrap { display: block; }
+
+/* ---- Corpo inferior do card no modo grid ---- */
+.card-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Linha inferior: valor à esquerda, apagar à direita */
+.card-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+/* No modo grid, o amount e o botão ficam na linha inferior */
+.invoices-container.mode-grid .invoice-card .amount  { text-align: left; font-size: 0.95rem; }
+.invoices-container.mode-grid .invoice-card .btn-delete { flex-shrink: 0; }
+
+/* Botão "Visualizar" no modo grid – abre o modal */
+.btn-visualizar {
+  display: none; /* só aparece no modo grid */
+  width: 34px; 
+  height: 34px;
+  background: var(--blue-primary); 
+  color: #fff;
+  border: none; 
+  border-radius: 6px;
+  font-size: 1.1rem; 
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.btn-visualizar:hover { background: var(--blue-dark); transform: scale(1.1); }
+.invoices-container.mode-grid .btn-visualizar { display: flex; }
+
+/* ============================================================
+   12. ESTADO VAZIO – quando não há faturas
+   ============================================================ */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-mid); }
+.empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-state h3 { font-family: 'Poppins', sans-serif; margin-bottom: 6px; color: var(--text-dark); }
+.empty-state p  { font-size: 0.88rem; }
+
+/* ============================================================
+   13. MODAL – Visualização da fatura com preview real
+   ============================================================ */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 500;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%; max-width: 660px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  overflow: hidden;
+  animation: scaleUp 0.25s ease;
+}
+@keyframes scaleUp {
+  from { transform: scale(0.88); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+/* Header do modal */
+.modal-header {
+  background: var(--blue-primary); color: #fff;
+  padding: 16px 22px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.modal-header h3 { font-family: 'Poppins', sans-serif; font-size: 1rem; }
+.modal-close { background: none; border: none; color: #fff; font-size: 1.6rem; cursor: pointer; line-height: 1; }
+.modal-close:hover { opacity: 0.7; }
+
+/* Corpo do modal – contém o canvas de preview do PDF */
+.modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f4f6f9;
+}
+
+/* Canvas dentro do modal – tamanho máximo controlado */
+#modal-canvas-wrap {
+  width: 100%;
+  max-height: 460px;
+  display: flex; align-items: center; justify-content: center;
+}
+#modal-canvas-wrap canvas {
+  max-width: 100%;
+  max-height: 460px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* Rodapé do modal com os botões de ação */
+.modal-footer {
+  padding: 14px 22px;
+  border-top: 1px solid #e2e8f0;
+  display: flex; justify-content: flex-end; gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Botão verde "Baixar PDF" */
+.btn-download {
+  background: var(--green-btn); color: #fff;
+  border: none; padding: 9px 18px; border-radius: 8px;
+  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center; gap: 6px;
+  transition: background 0.2s;
+}
+.btn-download:hover { background: var(--green-hover); }
+.btn-download svg  { width: 16px; height: 16px; }
+
+/* Botão azul "Abrir no Navegador" */
+.btn-open-browser {
+  background: var(--blue-primary); color: #fff;
+  border: none; padding: 9px 18px; border-radius: 8px;
+  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center; gap: 6px;
+  transition: background 0.2s;
+}
+.btn-open-browser:hover { background: var(--blue-dark); }
+.btn-open-browser svg  { width: 15px; height: 15px; }
+
+/* Botão cinza "Fechar" */
+.btn-cancel {
+  background: #f1f5f9; color: var(--text-mid);
+  border: 1px solid #e2e8f0; padding: 9px 18px; border-radius: 8px;
+  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  font-family: inherit; transition: background 0.2s;
+}
+.btn-cancel:hover { background: #c9cdd3; }
+
+
+/* ============================================================
+   14. MODAL DE CONFIRMAÇÃO – apagar fatura
+   ============================================================ */
+.confirm-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 600;
+  align-items: center; justify-content: center;
+}
+.confirm-overlay.show { display: flex; }
+
+.confirm-modal {
+  background: #fff; border-radius: 14px;
+  padding: 30px 28px; width: 90%; max-width: 380px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.22);
+  animation: scaleUp 0.2s ease;
+}
+.confirm-modal .warn-icon { font-size: 2.4rem; margin-bottom: 10px; }
+.confirm-modal h4 { font-family: 'Poppins', sans-serif; margin-bottom: 8px; }
+.confirm-modal p  { font-size: 0.88rem; color: var(--text-mid); margin-bottom: 20px; }
+
+.confirm-btns { display: flex; justify-content: center; gap: 12px; }
+.btn-confirm-yes {
+  background: var(--red-btn); color: #fff; border: none;
+  padding: 9px 22px; border-radius: 8px;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background 0.2s;
+}
+.btn-confirm-yes:hover { background: var(--red-hover); }
+.btn-confirm-no {
+  background: #f1f5f9; color: var(--text-mid);
+  border: 1px solid #e2e8f0; padding: 9px 22px; border-radius: 8px;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background 0.2s;
+}
+.btn-confirm-no:hover { background: #e2e8f0; }
+
+/* ============================================================
+   15. RODAPÉ DA PÁGINA
+   ============================================================ */
+.footer {
+  background: var(--blue-primary); color: #fff;
+  text-align: center; padding: 14px; font-size: 0.82rem;
+  margin-top: auto;
+}
+
+/* ============================================================
+   16. RESPONSIVIDADE
+   ============================================================ */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 200px; }
+  .summary-cards { grid-template-columns: 1fr; }
+  .invoices-container.mode-grid { grid-template-columns: 1fr; }
+  .content { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SIDEBAR
+     ============================================================ -->
+<aside class="sidebar">
+  <div class="logo">StockFlow</div>
+  <nav>
+    <ul>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home
+      </a></li>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a></li>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Adicionar Produtos
+      </a></li>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Categorias
+      </a></li>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Ver Produtos Em Falta
+      </a></li>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Gerenciar Vendas
+      </a></li>
+      <!-- Link ativo – página atual -->
+      <li><a href="#" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Faturas
+      </a></li>
+      <li><a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Definições
+      </a></li>
+    </ul>
+  </nav>
+  <button class="logout">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    Sair
+  </button>
+</aside>
+
+<!-- ============================================================
+     MAIN – todo o conteúdo à direita da sidebar
+     ============================================================ -->
+<div class="main">
+
+  <!-- Header com saudação e busca global -->
+  <header class="header">
+    <h1>Saudações Usuário - Kiene esteve aqui!</h1>
+    <div class="search-box">
+      <input type="text" placeholder="Pesquise qualquer coisa.." />
+      <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+    </div>
+  </header>
+
+  <!-- Conteúdo principal -->
+  <div class="content">
+
+    <!-- Resumo: 3 cards com estatísticas -->
+    <div class="summary-cards">
+      <div class="summary-card">
+        <div class="label">Total de Faturas</div>
+        <div class="value" id="total-faturas">6</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Valor Total das Faturas</div>
+        <div class="value green" id="valor-total">45.800,00Kz</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Fatura Mais Recente</div>
+        <div class="value" id="fatura-recente" style="font-size:1.1rem; color:var(--blue-primary);">FAT-2026-006</div>
+      </div>
+    </div>
+
+    <!-- Toolbar: título + controles -->
+    <div class="toolbar">
+      <h2>Todas as Faturas</h2>
+      <div class="toolbar-right">
+        <!-- Botão para adicionar uma nova fatura (importar PDF) -->
+        <button class="btn-add-fatura" onclick="document.getElementById('input-pdf').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Adicionar Fatura
+        </button>
+
+        <!-- Toggle modo lista / grid -->
+        <div class="view-toggle">
+          <button class="active" id="btn-vertical" onclick="setMode('vertical')" title="Modo Lista">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <button id="btn-grid" onclick="setMode('grid')" title="Modo Grid">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </button>
+        </div>
+
+        <!-- Busca de faturas -->
+        <input type="text" class="search-invoice" id="search-invoice" placeholder="Busque por uma fatura" oninput="filtrarFaturas()" />
+      </div>
+    </div>
+
+    <!-- Input oculto que recebe o arquivo PDF selecionado pelo usuário -->
+    <input type="file" id="input-pdf" accept=".pdf" onchange="importarPDF(event)" />
+
+    <!-- Container onde os cards são renderizados pelo JS -->
+    <div class="invoices-container" id="invoices-container"></div>
+  </div>
+
+  <!-- Rodapé -->
+  <footer class="footer">©Todos os direitos reservados 2026</footer>
+</div>
+
+<!-- ============================================================
+     MODAL – Visualização da fatura
+     ============================================================ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Fatura</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <!-- Corpo: canvas onde o pdf.js desenha a página -->
+    <div class="modal-body">
+      <div id="modal-canvas-wrap">
+        <!-- O canvas é criado dinamicamente pelo JS -->
+      </div>
+    </div>
+    <!-- Rodapé: Fechar | Baixar | Abrir no Navegador -->
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Fechar</button>
+      <button class="btn-download" id="btn-download-modal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar PDF
+      </button>
+      <!-- Botão que abre o PDF em uma nova aba do navegador -->
+      <button class="btn-open-browser" id="btn-open-browser-modal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Abrir no Navegador
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL APAGAR FATURA 
+     ============================================================ -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-modal">
+    <div class="warn-icon">⚠️</div>
+    <h4>Apagar Fatura</h4>
+    <p>Deseja mesmo apagar esta fatura? Esta ação não pode ser desfeita.</p>
+    <div class="confirm-btns">
+      <button class="btn-confirm-no"  onclick="closeConfirm()">Cancelar</button>
+      <button class="btn-confirm-yes" onclick="confirmarExclusao()">Apagar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     JAVASCRIPT – Toda a lógica da Pagina
+     ============================================================ -->
+<script>
+// ============================================================
+// CONFIGURAÇÃO DO PDF.JS
+// O pdf.js precisa saber onde buscar os "workers" que fazem
+// o parsing do PDF em background.
+// ============================================================
+const pdfjsLib = window['pdfjs-dist/build/pdf'];
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; 
+
+// ============================================================
+// ESTADO GLOBAL DA APLICAÇÃO
+// faturas      → array de objetos com os dados de cada fatura
+// fatura_para_apagar → ID temporário usado pelo modal de confirmação
+// modalPdfBlob → guarda o Blob do PDF ativo no modal (para baixar / abrir)
+// ============================================================
+let faturas = [
+  { id: 1, numero: "FAT-2026-006", data: new Date(2026, 0, 30), valor: 12500, cliente: "Empresa ABC",        pdfBlob: null },
+  { id: 2, numero: "FAT-2026-005", data: new Date(2026, 0, 20), valor: 8300,  cliente: "Distribuidora XYZ",  pdfBlob: null },
+  { id: 3, numero: "FAT-2026-004", data: new Date(2026, 0, 3),  valor: 15000, cliente: "Loja Central",       pdfBlob: null },
+  { id: 4, numero: "FAT-2025-003", data: new Date(2025, 11, 10),valor: 4500,  cliente: "Cliente Silva",      pdfBlob: null },
+  { id: 5, numero: "FAT-2025-002", data: new Date(2025, 9, 15), valor: 3200,  cliente: "Armazém Norte",      pdfBlob: null },
+  { id: 6, numero: "FAT-2025-001", data: new Date(2025, 0, 5),  valor: 2300,  cliente: "Empresa Velha",      pdfBlob: null }
+];
+
+let fatura_para_apagar = null;  // ID da fatura pendente de exclusão
+let modalPdfBlob       = null;  // Blob do PDF que está aberto no modal
+
+// ============================================================
+// CONTADOR DE ID – para faturas importadas pelo usuário
+// Começa em 100 para não colidir com os IDs estáticos acima.
+// ============================================================
+let proximoId = 100;
+
+// ============================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================
+
+/* Formata Date → "DD/MM/YYYY" */
+function formatarData(date) {
+  const d = String(date.getDate()).padStart(2,'0');
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  return `${d}/${m}/${date.getFullYear()}`;
+}
+
+/* Formata número → "12.500,00Kz" */
+function formatarValor(val) {
+  return val.toLocaleString('pt-PT', { minimumFractionDigits:2, maximumFractionDigits:2 }) + 'Kz';
+}
+
+/*
+ * Calcula mensagem relativa entre hoje e a data da fatura.
+ * Retorna { texto, classe } onde classe é recent | medium | old
+ */
+function mensagemRelativa(date) {
+  const dias = Math.floor((new Date() - date) / 86400000); // 86400000 ms = 1 dia
+  if (dias <= 1)   return { texto: 'criada hoje',                            classe: 'recent' };
+  if (dias <= 6)   return { texto: `criada há ${dias} dias`,                 classe: 'recent' };
+  if (dias <= 13)  return { texto: 'criada há 1 semana',                     classe: 'recent' };
+  if (dias <= 27)  return { texto: `criada há ${Math.floor(dias/7)} semanas`,classe: 'medium' };
+  if (dias <= 60)  return { texto: 'criada há 1 mês',                        classe: 'medium' };
+  if (dias <= 365) return { texto: `criada há ${Math.floor(dias/30)} meses`, classe: 'medium' };
+  const anos = Math.floor(dias/365);
+  return { texto: anos===1 ? 'criada há 1 ano' : `criada há ${anos} anos`,  classe: 'old' };
+}
+
+// ============================================================
+// RENDERIZAR PREVIEW DO PDF EM UM CANVAS ESPECÍFICO
+// Função assíncrona que:
+//   1. Recebe um ArrayBuffer (dados do PDF) e um elemento canvas
+//   2. Usa pdf.js para carregar o PDF
+//   3. Desenha a página 1 no canvas com a escala adequada
+// Se o PDF não existe (pdfBlob === null), desenha um placeholder.
+// ============================================================
+async function renderPdfPreview(pdfBlob, canvasElement) {
+  // Se não há blob, não faz nada (o placeholder já está no HTML)
+  if (!pdfBlob) return;
+
+  try {
+    // Converte o Blob em ArrayBuffer para o pdf.js
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+
+    // Carrega o documento PDF usando pdf.js
+    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    // Pega apenas a primeira página
+    const page = await pdfDoc.getPage(1);
+
+    // Calcula a escala para caber no canvas sem distorção
+    const viewport_original = page.getViewport({ scale: 1 });
+    const desiredWidth = canvasElement.offsetWidth || 280; // largura alvo
+    const scale = desiredWidth / viewport_original.width;
+    const viewport = page.getViewport({ scale });
+
+    // Define o tamanho interno do canvas (resolução)
+    canvasElement.width  = viewport.width;
+    canvasElement.height = viewport.height;
+
+    // Desenha a página no canvas
+    const ctx = canvasElement.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // Fecha o documento para liberar memória
+    await pdfDoc.destroy();
+
+  } catch (err) {
+    // Se falhar, simplesmente não desenha (placeholder já aparece)
+    console.warn('Erro ao renderizar preview do PDF:', err);
+  }
+}
+
+// ============================================================
+// RENDERIZAR PREVIEW NO MODAL (tamanho maior)
+// Mesmo princípio, mas com escala maior para o modal.
+// ============================================================
+async function renderPdfModal(pdfBlob) {
+  const wrap = document.getElementById('modal-canvas-wrap');
+  wrap.innerHTML = ''; // limpa o canvas anterior
+
+  if (!pdfBlob) {
+    wrap.innerHTML = '<p style="color:#aaa;">Sem prévia disponível.</p>';
+    return;
+  }
+
+  // Cria um canvas novo para o modal
+  const canvas = document.createElement('canvas');
+  wrap.appendChild(canvas);
+
+  try {
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const pdfDoc      = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page        = await pdfDoc.getPage(1);
+
+    // Escala maior para o modal (encaixa na largura máxima do modal)
+    const vp0  = page.getViewport({ scale: 1 });
+    const scale = Math.min(580 / vp0.width, 460 / vp0.height); // limita por largura e altura
+    const vp   = page.getViewport({ scale });
+
+    canvas.width  = vp.width;
+    canvas.height = vp.height;
+
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    await pdfDoc.destroy();
+
+  } catch (err) {
+    wrap.innerHTML = '<p style="color:#aaa;">Erro ao carregar prévia.</p>';
+    console.warn(err);
+  }
+}
+
+// ============================================================
+// IMPORTAR PDF – chamado quando o usuário seleciona um arquivo
+// ============================================================
+async function importarPDF(event) {
+  const file = event.target.files[0]; // primeiro arquivo selecionado
+  if (!file || file.type !== 'application/pdf') return; // só aceita PDF
+
+  // Gera um número de fatura automático
+  proximoId++;
+  const numero = `FAT-IMP-${proximoId}`;
+
+  // Cria o objeto da fatura com o Blob do arquivo
+  const novaFatura = {
+    id:       proximoId,
+    numero:   numero,
+    data:     new Date(),         // data de importação = hoje
+    valor:    0,                  // valor desconhecido (usuário pode editar futuramente)
+    cliente:  'Importado',
+    pdfBlob:  file                // guarda o File (que é um tipo de Blob)
+  };
+
+  // Adiciona ao início do array (aparece primeiro na lista)
+  faturas.unshift(novaFatura);
+
+  // Re-renderiza a lista
+  filtrarFaturas();
+
+  // Limpa o input para permitir reimportar o mesmo arquivo
+  event.target.value = '';
+}
+
+// ============================================================
+// RENDERIZAR TODOS OS CARDS
+// ============================================================
+function renderFaturas(lista) {
+  const container = document.getElementById('invoices-container');
+  container.innerHTML = '';
+
+  // Estado vazio
+  if (lista.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📄</div>
+        <h3>Sem faturas encontradas</h3>
+        <p>Não há faturas correspondentes à sua busca.</p>
+      </div>`;
+    atualizarResumo();
+    return;
+  }
+
+  lista.forEach((fatura, index) => {
+    const msg = mensagemRelativa(fatura.data);
+
+    // Cria o elemento do card
+    const card = document.createElement('div');
+    card.className = 'invoice-card';
+    card.style.animationDelay = `${index * 0.07}s`; // entrada escalonada
+    card.setAttribute('data-id', fatura.id);
+
+    // Monta o HTML interno do card
+    card.innerHTML = `
+      <!-- Wrapper do preview PDF (só visível no modo grid via CSS) -->
+      <div class="pdf-preview-wrap" id="preview-${fatura.id}">
+        <!-- Placeholder que aparece enquanto o PDF não foi desenhado -->
+        <div class="no-preview">
+          <div class="pdf-stamp">PDF</div>
+        </div>
+        <!-- Canvas onde o pdf.js desenha a página 1 do PDF -->
+        <canvas id="canvas-preview-${fatura.id}" style="display:none;"></canvas>
+      </div>
+
+      <!-- Ícone PDF pequeno (modo vertical) -->
+      <div class="pdf-icon-small">PDF</div>
+
+      <!-- Bloco de informações -->
+      <div class="info">
+        <div class="invoice-number">${fatura.numero}</div>
+        <div class="invoice-date">📅 ${formatarData(fatura.data)} — ${fatura.cliente}</div>
+        <span class="relative-msg ${msg.classe}">${msg.texto}</span>
+      </div>
+
+      <!-- Corpo inferior (usado no modo grid para valor + ações) -->
+      <div class="card-body" style="display:none;">
+        <div class="invoice-number">${fatura.numero}</div>
+        <div class="invoice-date">📅 ${formatarData(fatura.data)} — ${fatura.cliente}</div>
+        <span class="relative-msg ${msg.classe}">${msg.texto}</span>
+        <div class="card-footer-row">
+          <span class="amount">${formatarValor(fatura.valor)}</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn-visualizar" onclick="event.stopPropagation(); abrirModal(${fatura.id})">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+            <button class="btn-delete" onclick="event.stopPropagation(); abrirConfirm(${fatura.id})">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Valor (modo vertical) -->
+      <div class="amount amount-vertical">${formatarValor(fatura.valor)}</div>
+
+      <!-- Botão apagar (modo vertical) -->
+      <button class="btn-delete btn-delete-vertical" onclick="event.stopPropagation(); abrirConfirm(${fatura.id})">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    `;
+
+    // Clique no card (modo vertical) → abre modal
+    card.addEventListener('click', () => abrirModal(fatura.id));
+
+    container.appendChild(card);
+
+    // Se a fatura tem PDF, renderiza o preview no canvas
+    if (fatura.pdfBlob) {
+      const canvas = document.getElementById(`canvas-preview-${fatura.id}`);
+      const placeholder = card.querySelector('.no-preview');
+      // Aguarda um tick para o canvas estar no DOM com dimensões
+      setTimeout(async () => {
+        await renderPdfPreview(fatura.pdfBlob, canvas);
+        // Se renderizou com sucesso, mostra canvas e esconde placeholder
+        if (canvas.width > 0) {
+          canvas.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+        }
+      }, 50);
+    }
+  });
+
+  atualizarResumo();
+}
+
+// ============================================================
+// ALTERNAR MODO VERTICAL ↔ GRID
+// No modo grid, escondi os elementos do modo vertical
+// e mostrei o card-body que tem tudo organizado.
+// ============================================================
+function setMode(mode) {
+  const container   = document.getElementById('invoices-container');
+  const btnV        = document.getElementById('btn-vertical');
+  const btnG        = document.getElementById('btn-grid');
+
+  if (mode === 'vertical') {
+    container.classList.remove('mode-grid');
+    btnV.classList.add('active');
+    btnG.classList.remove('active');
+
+    // Restaura layout vertical em todos os cards
+    container.querySelectorAll('.invoice-card').forEach(card => {
+      card.style.flexDirection = '';
+      card.style.padding       = '16px 18px';
+      card.style.cursor        = 'pointer';
+
+      // Mostra elementos do modo vertical
+      card.querySelector('.pdf-icon-small')       && (card.querySelector('.pdf-icon-small').style.display       = 'flex');
+      card.querySelector('.info')                 && (card.querySelector('.info').style.display                 = 'flex');
+      card.querySelector('.amount-vertical')      && (card.querySelector('.amount-vertical').style.display      = 'block');
+      card.querySelector('.btn-delete-vertical')  && (card.querySelector('.btn-delete-vertical').style.display  = 'flex');
+
+      // Esconde elementos do modo grid
+      card.querySelector('.pdf-preview-wrap') && (card.querySelector('.pdf-preview-wrap').style.display = 'none');
+      card.querySelector('.card-body')        && (card.querySelector('.card-body').style.display        = 'none');
+    });
+
+  } else {
+    // MODO GRID
+    container.classList.add('mode-grid');
+    btnV.classList.remove('active');
+    btnG.classList.add('active');
+
+    container.querySelectorAll('.invoice-card').forEach(card => {
+      card.style.flexDirection = 'column';
+      card.style.padding       = '0';
+      card.style.cursor        = 'default';
+
+      // Esconde elementos do modo vertical
+      card.querySelector('.pdf-icon-small')       && (card.querySelector('.pdf-icon-small').style.display       = 'none');
+      card.querySelector('.info')                 && (card.querySelector('.info').style.display                 = 'none');
+      card.querySelector('.amount-vertical')      && (card.querySelector('.amount-vertical').style.display      = 'none');
+      card.querySelector('.btn-delete-vertical')  && (card.querySelector('.btn-delete-vertical').style.display  = 'none');
+
+      // Mostra elementos do modo grid
+      card.querySelector('.pdf-preview-wrap') && (card.querySelector('.pdf-preview-wrap').style.display = 'block');
+      card.querySelector('.card-body')        && (card.querySelector('.card-body').style.display        = 'flex');
+    });
+  }
+}
+
+// ============================================================
+// FILTRAR FATURAS PELA BUSCA
+// ============================================================
+function filtrarFaturas() {
+  const q = document.getElementById('search-invoice').value.toLowerCase().trim();
+  const lista = q === ''
+    ? faturas
+    : faturas.filter(f => f.numero.toLowerCase().includes(q) || f.cliente.toLowerCase().includes(q));
+  renderFaturas(lista);
+  // Aplica o modo atual após re-render
+  const isGrid = document.getElementById('btn-grid').classList.contains('active');
+  if (isGrid) setMode('grid');
+}
+
+// ============================================================
+// ATUALIZAR CARDS DE RESUMO NO TOPO
+// ============================================================
+function atualizarResumo() {
+  document.getElementById('total-faturas').textContent = faturas.length;
+  document.getElementById('valor-total').textContent   = formatarValor(faturas.reduce((a,f) => a + f.valor, 0));
+  if (faturas.length > 0) {
+    const recente = [...faturas].sort((a,b) => b.data - a.data)[0];
+    document.getElementById('fatura-recente').textContent = recente.numero;
+  } else {
+    document.getElementById('fatura-recente').textContent = '—';
+  }
+}
+
+// ============================================================
+// ABRIR MODAL DE VISUALIZAÇÃO
+// ============================================================
+async function abrirModal(id) {
+  // Encontra a fatura pelo ID
+  const fatura = faturas.find(f => f.id === id);
+  if (!fatura) return;
+
+  // Atualiza título do modal
+  document.getElementById('modal-title').textContent = fatura.numero;
+
+  // Guarda o blob atual para os botões de baixar / abrir
+  modalPdfBlob = fatura.pdfBlob;
+
+  // Renderiza o preview no modal
+  await renderPdfModal(fatura.pdfBlob);
+
+  // Mostra o modal
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+// ============================================================
+// FECHAR MODAL
+// ============================================================
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+  modalPdfBlob = null;
+}
+
+// ============================================================
+// BAIXAR PDF 
+// ============================================================
+document.getElementById('btn-download-modal').addEventListener('click', () => {
+  if (!modalPdfBlob) return;
+  const url  = URL.createObjectURL(modalPdfBlob);   // URL temporária do blob
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'fatura.pdf';                        // nome do arquivo no download
+  document.body.appendChild(a);
+  a.click();                                        // Faz o download
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);                         // libera a URL temporária
+});
+
+// ============================================================
+// ABRIR NO NAVEGADOR – abre o PDF em uma nova aba
+// ============================================================
+document.getElementById('btn-open-browser-modal').addEventListener('click', () => {
+  if (!modalPdfBlob) return;
+  const url = URL.createObjectURL(modalPdfBlob);  
+  window.open(url, '_blank');                     // abre em nova aba
+  
+});
+
+// ============================================================
+// MODAL DE CONFIRMAÇÃO – APAGAR
+// ============================================================
+function abrirConfirm(id) {
+  fatura_para_apagar = id;
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+
+function closeConfirm() {
+  fatura_para_apagar = null;
+  document.getElementById('confirm-overlay').classList.remove('show');
+}
+
+function confirmarExclusao() {
+  if (fatura_para_apagar !== null) {
+    faturas = faturas.filter(f => f.id !== fatura_para_apagar);
+  }
+  closeConfirm();
+  filtrarFaturas(); // re-aplica filtro e re-renderiza
+}
+
+// ============================================================
+// FECHAR MODALS AO CLICAR NO FUNDO
+// ============================================================
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('confirm-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeConfirm();
+});
+
+// ============================================================
+// INICIALIZAÇÃO – primeira renderização ao carregar a página
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  renderFaturas(faturas);
+});
+</script>
+</body>
+</html>
